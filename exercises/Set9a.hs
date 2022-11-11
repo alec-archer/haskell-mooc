@@ -26,7 +26,11 @@ import Mooc.Todo
 -- Otherwise return "Ok."
 
 workload :: Int -> Int -> String
-workload nExercises hoursPerExercise = todo
+workload nExercises hoursPerExercise
+  | totalHours > 100 = "Holy moly!"
+  | totalHours < 10 = "Piece of cake!"
+  | otherwise = "Ok."
+  where totalHours = (nExercises * hoursPerExercise) 
 
 ------------------------------------------------------------------------------
 -- Ex 2: Implement the function echo that builds a string like this:
@@ -39,7 +43,8 @@ workload nExercises hoursPerExercise = todo
 -- Hint: use recursion
 
 echo :: String -> String
-echo = todo
+echo [] = "" 
+echo (x:xs) = (x:xs) ++ ", " ++ echo xs
 
 ------------------------------------------------------------------------------
 -- Ex 3: A country issues some banknotes. The banknotes have a serial
@@ -52,7 +57,25 @@ echo = todo
 -- are valid.
 
 countValid :: [String] -> Int
-countValid = todo
+-- need to filter
+countValid ns = length (filter isValid ns)
+  where isValid note 
+          | note !! 2 == note !! 4 = True 
+          | note !! 3 == note !! 5 = True
+          | otherwise = False
+
+-- countValid ns = foldr (\x prev -> prev + (isValid x)) 0 ns
+--   where isValid note 
+--           | note !! 2 == note !! 4 = 1
+--           | note !! 3 == note !! 5 = 1
+--           | otherwise = 0
+
+-- countValid [] = 0
+-- countValid (n:ns) = isValid n + countValid ns
+--   where isValid note 
+--           | note !! 2 == note !! 4 = 1
+--           | note !! 3 == note !! 5 = 1
+--           | otherwise = 0
 
 ------------------------------------------------------------------------------
 -- Ex 4: Find the first element that repeats two or more times _in a
@@ -64,7 +87,11 @@ countValid = todo
 --   repeated [1,2,1,2,3,3] ==> Just 3
 
 repeated :: Eq a => [a] -> Maybe a
-repeated = todo
+repeated [] = Nothing
+repeated (x:[]) = Nothing
+repeated (x:y:xs)
+  | x == y = Just x
+  | otherwise = repeated (y:xs)
 
 ------------------------------------------------------------------------------
 -- Ex 5: A laboratory has been collecting measurements. Some of the
@@ -86,7 +113,26 @@ repeated = todo
 --     ==> Left "no data"
 
 sumSuccess :: [Either String Int] -> Either String Int
-sumSuccess = todo
+sumSuccess xs = case successes of 
+                  [] -> Left "no data"
+                  ns -> Right (sum ns)
+  where successes = [x | Right x <- xs]
+
+-- sumSuccess xs = case successes of 
+--                   [] -> Left "no data"
+--                   ns -> Right (sum ns)
+--   where successes = (map (\(Right x) -> x) . filter isRightType) xs
+--         isRightType (Right x) = True
+--         isRightType _ = False
+
+-- sumSuccess [] = Left "no data"
+-- sumSuccess ((Left _):ms) = sumSuccess ms
+-- sumSuccess ((Right x):ms) = Right (x + (sum ms))
+--   where sum [] = 0
+--         sum ((Right x):ms) = x + sum ms
+--         sum ((Left x):ms) = sum ms
+
+
 
 ------------------------------------------------------------------------------
 -- Ex 6: A combination lock can either be open or closed. The lock
@@ -108,30 +154,36 @@ sumSuccess = todo
 --   isOpen (open "0000" (lock (changeCode "0000" (open "1234" aLock)))) ==> True
 --   isOpen (open "1234" (lock (changeCode "0000" (open "1234" aLock)))) ==> False
 
-data Lock = LockUndefined
+data Lock = Open String | Closed String
   deriving Show
 
 -- aLock should be a locked lock with the code "1234"
 aLock :: Lock
-aLock = todo
+aLock = Closed "1234" 
 
 -- isOpen returns True if the lock is open
 isOpen :: Lock -> Bool
-isOpen = todo
+isOpen (Open _) = True 
+isOpen (Closed _) = False
 
 -- open tries to open the lock with the given code. If the code is
 -- wrong, nothing happens.
 open :: String -> Lock -> Lock
-open = todo
+open code (Closed x)
+  | code == x = Open x
+  | otherwise = Closed x
+open _ lock = lock
 
 -- lock closes a lock. If the lock is already closed, nothing happens.
 lock :: Lock -> Lock
-lock = todo
+lock (Open x) = Closed x
+lock lock = lock
 
 -- changeCode changes the code of an open lock. If the lock is closed,
 -- nothing happens.
 changeCode :: String -> Lock -> Lock
-changeCode = todo
+changeCode code (Open _)= Open code
+changeCode _ lock = lock
 
 ------------------------------------------------------------------------------
 -- Ex 7: Here's a type Text that just wraps a String. Implement an Eq
@@ -149,6 +201,9 @@ changeCode = todo
 data Text = Text String
   deriving Show
 
+instance Eq Text where
+  (Text x) == (Text y) = ignoreWhiteSpace(x) == ignoreWhiteSpace(y)
+    where ignoreWhiteSpace cs = filter (not . Data.Char.isSpace) cs
 
 ------------------------------------------------------------------------------
 -- Ex 8: We can represent functions or mappings as lists of pairs.
@@ -182,7 +237,16 @@ data Text = Text String
 --       ==> [("a",1),("b",2)]
 
 compose :: (Eq a, Eq b) => [(a,b)] -> [(b,c)] -> [(a,c)]
-compose = todo
+compose ab bc = concatMap apply ab
+  where apply (a,b) = case (lookup b bc) of Nothing -> []
+                                            (Just c) -> [(a,c)]
+
+-- compose [] _ = []
+-- compose _ [] = []
+-- compose ((k,val):xs) ys = case (lookup val ys) of
+--                       (Just newVal) -> (k,newVal):(compose xs ys)
+--                       Nothing -> compose xs ys
+
 
 ------------------------------------------------------------------------------
 -- Ex 9: Reorder a list using a list of indices.
@@ -226,4 +290,7 @@ multiply :: Permutation -> Permutation -> Permutation
 multiply p q = map (\i -> p !! (q !! i)) (identity (length p))
 
 permute :: Permutation -> [a] -> [a]
-permute = todo
+permute p q = (map snd . sortBy (comparing fst) . zip p) q
+-- permute p q = map (\(_,v) -> v) sortedPairs 
+--   where sortedPairs = sortBy (\(k1,_) (k2,_) -> compare k1 k2) pairs
+--         pairs = map (\i -> (p !! i, q !! i)) (identity (length p))
