@@ -40,7 +40,9 @@ test = do
   return (x<10)
 
 ifM :: Monad m => m Bool -> m a -> m a -> m a
-ifM opBool opThen opElse = todo
+ifM opBool opThen opElse = do
+  bool <- opBool
+  if bool then opThen else opElse
 
 ------------------------------------------------------------------------------
 -- Ex 2: the standard library function Control.Monad.mapM defines a
@@ -82,8 +84,37 @@ perhapsIncrement True x = modify (+x)
 perhapsIncrement False _ = return ()
 
 mapM2 :: Monad m => (a -> b -> m c) -> [a] -> [b] -> m [c]
-mapM2 op xs ys = todo
+mapM2 _ [] _ = return []
+mapM2 _ _ [] = return []
+mapM2 op (x:xs) (y:ys) = op x y >>= \result ->
+                         mapM2 op xs ys >>= \rest ->
+                         return (result:rest)
+-- mapM2 op (x:xs) (y:ys) = do
+--   result <- op x y
+--   rest <- mapM2 op xs ys
+--   return (result:rest)
 
+  
+-- mapM2 :: Monad m => (a -> b -> m c) -> [a] -> [b] -> m [c]
+-- mapM2 op xs ys = return (go xs ys)
+--   where go _ [] = []
+--         go [] _ = []
+--         go (x:xs) (y:ys) = do -- do means that do returns m X -- what happens in monad, stays in monad
+--           result <- op x y
+--           result:(go xs ys)
+                            
+-- another attempt where I define type signature of go; got same error as above attempt; b/c I unwrap `m c` in do block (`m c` is return type of `op`), 
+-- actual return type for go is `m c` even though expected return type is [c]; do block must return monad which makes sense b/c do block is a substitute for
+-- using >>=. the >>= operator returns a monad (m a -> (a -> m b) -> m b)
+-- mapM2 :: Monad m => (a -> b -> m c) -> [a] -> [b] -> m [c]
+-- mapM2 op xs ys = return (go op xs ys)
+
+-- go :: Monad m => (a -> b -> m c) -> [a] -> [b] -> [c]
+-- go _ _ [] = []
+-- go _ [] _ = []
+-- go op (x:xs) (y:ys) = do 
+--   result <- op x y
+--   result:(go op xs ys)
 ------------------------------------------------------------------------------
 -- Ex 3: Finding paths.
 --
@@ -140,14 +171,25 @@ maze1 = [("Entry",["Pit","Corridor 1"])
 
 
 visit :: [(String,[String])] -> String -> State [String] ()
-visit maze place = todo
+visit maze place = do
+  state <- get
+  case (find (==place) state) of
+    Nothing -> do
+                 put (place:state)
+                 case (lookup place maze) of
+                  Just neighbours -> mapM_ (visit maze) neighbours
+                  Nothing -> return ()
+    Just _ -> return ()
 
 -- Now you should be able to implement path using visit. If you run
 -- visit on a place using an empty state, you'll get a state that
 -- lists all the places that are reachable from the starting place.
 
 path :: [(String,[String])] -> String -> String -> Bool
-path maze place1 place2 = todo
+path maze place1 place2 = case find (==place2) (snd (runState (visit maze place1) [])) of
+                            Just _ -> True
+                            Nothing -> False
+
 
 ------------------------------------------------------------------------------
 -- Ex 4: Given two lists, ks and ns, find numbers i and j from ks,
@@ -163,7 +205,17 @@ path maze place1 place2 = todo
 -- PS. The tests don't care about the order of results.
 
 findSum2 :: [Int] -> [Int] -> [(Int,Int,Int)]
-findSum2 ks ns = todo
+-- findSum2 ks ns = do
+--   i <- ks
+--   j <- ks
+--   n <- ns 
+--   if i + j == n then [(i,j,n)] else []
+
+findSum2 ks ns = 
+  ks >>= \i -> -- need to use >>= instead of >> b/c we need value i
+  ks >>= \j -> 
+  ns >>= \n ->
+  if i + j == n then [(i,j,n)] else [] -- don't need return fnc because [] is our monad instance; doing return [(i,j,n)] would return [[(i,j,n)]]
 
 ------------------------------------------------------------------------------
 -- Ex 5: compute all possible sums of elements from the given
@@ -183,8 +235,19 @@ findSum2 ks ns = todo
 --   allSums [1,2,4]
 --     ==> [7,3,5,1,6,2,4,0]
 
+subsequence :: [Int] -> [[Int]]
+subsequence [] = [[0]]
+subsequence (x:xs) = map (x:) (subsequence xs) ++ subsequence xs  
+
 allSums :: [Int] -> [Int]
-allSums xs = todo
+allSums [] = [0]
+allSums xs = map sum (subsequence xs) 
+
+-- allSums :: [Int] -> [Int]
+-- allSums [] = [0]
+-- allSums (x:xs) = [sum (x:xs)] ++ go x xs ++ allSums xs
+--   where go _ [] = [] 
+--         go x (y:ys) = (x+y):go x ys
 
 ------------------------------------------------------------------------------
 -- Ex 6: the standard library defines the function
@@ -214,7 +277,10 @@ sumBounded :: Int -> [Int] -> Maybe Int
 sumBounded k xs = foldM (f1 k) 0 xs
 
 f1 :: Int -> Int -> Int -> Maybe Int
-f1 k acc x = todo
+f1 k acc x 
+  | sum > k = Nothing
+  | otherwise = Just sum
+  where sum = acc + x
 
 -- sumNotTwice computes the sum of a list, but counts only the first
 -- occurrence of each value.
@@ -228,7 +294,13 @@ sumNotTwice :: [Int] -> Int
 sumNotTwice xs = fst $ runState (foldM f2 0 xs) []
 
 f2 :: Int -> Int -> State [Int] Int
-f2 acc x = todo
+f2 acc x = do
+  state <- get
+  case (find (x==) state) of
+    Just _ -> return acc
+    Nothing -> do
+                 put (x:state)
+                 return (acc + x)
 
 ------------------------------------------------------------------------------
 -- Ex 7: here is the Result type from Set12. Implement a Monad Result
@@ -253,7 +325,9 @@ data Result a = MkResult a | NoResult | Failure String deriving (Show,Eq)
 
 instance Functor Result where
   -- The same Functor instance you used in Set12 works here.
-  fmap = todo
+  fmap _ NoResult = NoResult
+  fmap _ (Failure str) = Failure str
+  fmap f (MkResult a) = MkResult (f a)
 
 -- This is an Applicative instance that works for any monad, you
 -- can just ignore it for now. We'll get back to Applicative later.
@@ -263,8 +337,10 @@ instance Applicative Result where
 
 instance Monad Result where
   -- implement return and >>=
-  return = todo
-  (>>=) = todo
+  return  x = MkResult x
+  NoResult >>= _ = NoResult
+  Failure str >>= _ = Failure str
+  MkResult x >>= f = f x 
 
 ------------------------------------------------------------------------------
 -- Ex 8: Here is the type SL that combines the State and Logger
@@ -310,9 +386,25 @@ putSL s' = SL (\s -> ((),s',[]))
 modifySL :: (Int->Int) -> SL ()
 modifySL f = SL (\s -> ((),f s,[]))
 
+fst' :: (a, b, c) -> a
+fst' (a, _, _) = a
+snd' :: (a, b, c) -> b 
+snd' (_, b, _) = b
+thrd' :: (a, b, c) -> c 
+thrd' (_,_,c) = c
+
 instance Functor SL where
   -- implement fmap
-  fmap = todo
+  -- fmap f (SL g) = SL g'
+  --   where g' x = (f (fst' (g x)), snd' (g x), thrd' (g x))
+
+  -- alternative 1
+  -- fmap f (SL g) = SL h
+  --   where h x = let (val, state, log) = g x
+  --               in (f val, state, log)
+
+  -- alternative 2
+  fmap f (SL g) = SL (\s -> let (val, state, log) = g s in (f val, state, log))
 
 -- This is an Applicative instance that works for any monad, you
 -- can just ignore it for now. We'll get back to Applicative later.
@@ -322,8 +414,14 @@ instance Applicative SL where
 
 instance Monad SL where
   -- implement return and >>=
-  return = todo
-  (>>=) = todo
+  return x = SL (\s -> (x, s, []))
+  -- return x = SL f
+    -- where f y = (x, snd' (f y), thrd' (f y))
+  op >>= f = SL h
+    where h state0 = let (val, state1, log1) = runSL op state0
+                         op2 = f val
+                         (val2, state2, log2) = runSL op2 state1
+                     in (val2, state2, log1 ++ log2) 
 
 ------------------------------------------------------------------------------
 -- Ex 9: Implement the operation mkCounter that produces the IO operations
@@ -351,4 +449,6 @@ instance Monad SL where
 --  4
 
 mkCounter :: IO (IO (), IO Int)
-mkCounter = todo
+mkCounter = do
+  ref <- newIORef 0 
+  return (modifyIORef ref (+1), readIORef ref)

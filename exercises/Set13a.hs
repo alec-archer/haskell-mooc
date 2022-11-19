@@ -44,17 +44,23 @@ readNames s =
 --
 -- (NB! There are obviously other corner cases like the inputs " " and
 -- "a b c", but you don't need to worry about those here)
-split :: String -> Maybe (String,String)
-split s = case (mySplit ' ' s) of
-            [x,y] -> Just (x,y)
-            _ -> Nothing
 
-mySplit :: Char -> String -> [String]
-mySplit c xs = helper [] xs
-  where helper piece [] = [piece]
-        helper piece (y:ys)
-          | c == y    = piece : helper [] ys
-          | otherwise = helper (piece++[y]) ys
+-- split :: String -> Maybe (String,String)
+-- split s = case (mySplit ' ' s) of
+--             [x,y] -> Just (x,y)
+--             _ -> Nothing
+
+-- mySplit :: Char -> String -> [String]
+-- mySplit c xs = helper [] xs
+--   where helper piece [] = [piece]
+--         helper piece (y:ys)
+--           | c == y    = piece : helper [] ys
+--           | otherwise = helper (piece++[y]) ys
+
+split :: String -> Maybe (String,String)
+split s = case break (== ' ') s of
+            (xs, ' ':ys) -> Just (xs,ys)
+            _ -> Nothing
 
 -- checkNumber should take a pair of two strings and return them
 -- unchanged if they don't contain numbers. Otherwise Nothing is
@@ -70,9 +76,8 @@ checkNumber (first, last)
 -- returned.
 checkCapitals :: (String, String) -> Maybe (String, String)
 checkCapitals (for,sur)
-  | isCapitalized (head for) && isCapitalized (head sur) = Just (for, sur)
+  | isUpper (head for) && isUpper (head sur) = Just (for, sur)
   | otherwise = Nothing
-  where isCapitalized c = elem c "QWERTYUIOPASDFGHJKLZXCVBNM"
 
 ------------------------------------------------------------------------------
 -- Ex 2: Given a list of players and their scores (as [(String,Int)]),
@@ -131,9 +136,12 @@ selectSum xs is = mapM (safeIndex xs) is >>= \x ->
                   return (sum x)
 
 safeIndex :: [a] -> Int -> Maybe a
-safeIndex xs i
-  | i > (length xs - 1) || i < 0 = Nothing
-  | otherwise = Just (xs !! i)
+safeIndex [] _ = Nothing
+safeIndex (x:xs) 0 = Just x
+safeIndex (x:xs) i = safeIndex xs (i - 1)
+-- safeIndex xs i
+--   | i > (length xs - 1) || i < 0 = Nothing
+--   | otherwise = Just (xs !! i)
 ------------------------------------------------------------------------------
 -- Ex 4: Here is the Logger monad from the course material. Implement
 -- the operation countAndLog which produces the number of elements
@@ -257,15 +265,22 @@ update = get >>= \old ->
 --   parensMatch "(()((()))"   ==> False
 --   parensMatch "(()))("      ==> False
 
+-- paren :: Char -> State Int ()
+-- paren c = do old <- get
+--              if old < 0
+--                then put old 
+--                else
+--                  case c of
+--                    '(' -> put (old + 1)
+--                    ')' -> put (old - 1)
+--                    _ -> return ()
 paren :: Char -> State Int ()
 paren c = do old <- get
-             if old < 0
-               then put old 
-               else
-                 case c of
-                   '(' -> put (old + 1)
-                   ')' -> put (old - 1)
-                   _ -> return ()
+             when (old >= 0) (
+              case c of
+                '(' -> put (old + 1)
+                ')' -> put (old - 1)
+                _ -> return ())
 
 parensMatch :: String -> Bool
 parensMatch s = count == 0
@@ -296,11 +311,22 @@ parensMatch s = count == 0
 -- PS. The order of the list of pairs doesn't matter
 
 count :: Eq a => a -> State [(a,Int)] ()
-count x = do old <- get
-             case (lookup x old) of
-               Just val -> modify (update val)
-               Nothing -> put ((x,1):old)
-               where update val xs = (x, val + 1):(filter (\(k,v) -> k /= x) xs) -- filter is not the most efficient; could use findIndex, take, then concatenate
+count x = modify (update x)
+  where update x [] = [(x, 1)]
+        update x ((k,v):ys)
+          | x == k = (k, v + 1):ys
+          | otherwise = (k, v):update x ys
+
+
+-- count x = do old <- get
+--              case (lookup x old) of
+--                Just val -> modify (update val)
+--                Nothing -> put ((x,1):old)
+--                  where update _ [] = []
+--                        update val ((k,_):xs)
+--                          | x == k = (x, val + 1):(update val xs)
+--                          | otherwise = update val xs
+--                where update val xs = (x, val + 1):(filter (\(k,v) -> k /= x) xs) -- filter is not the most efficient; could use findIndex, take, then concatenate
 
 ------------------------------------------------------------------------------
 -- Ex 10: Implement the operation occurrences, which
